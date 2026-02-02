@@ -70,6 +70,12 @@ export default function ScannerScreen() {
     );
   }
 
+  const handleScanReset = () => {
+    setTimeout(() => {
+      setScanned(false);
+    }, 2000);
+  };
+
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
@@ -81,7 +87,7 @@ export default function ScannerScreen() {
         payload = JSON.parse(data);
       } catch {
         Alert.alert("Invalid QR", "This is not a valid ticket QR code.", [
-            { text: "OK", onPress: () => setScanned(false) }
+            { text: "OK", onPress: handleScanReset }
         ]);
         return;
       }
@@ -90,7 +96,7 @@ export default function ScannerScreen() {
       const isValidSig = verifyTicketSignature(payload);
       if (!isValidSig) {
         Alert.alert("⚠️ FAKE TICKET", "Digital Signature verification failed! This ticket is forged.", [
-            { text: "OK", onPress: () => setScanned(false) }
+            { text: "OK", onPress: handleScanReset }
         ]);
         return;
       }
@@ -99,7 +105,7 @@ export default function ScannerScreen() {
       const isDuplicate = await checkTicketExists(payload.data.ticket_id);
       if (isDuplicate) {
         Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
-            { text: "OK", onPress: () => setScanned(false) }
+            { text: "OK", onPress: handleScanReset }
         ]);
         return;
       }
@@ -108,12 +114,12 @@ export default function ScannerScreen() {
       try {
         await insertTicket(payload.data);
         Alert.alert("✅ VALID TICKET", `Amount: ${payload.data.amount} ${payload.data.currency}\nValid & Saved to Ledger.`, [
-            { text: "OK", onPress: () => setScanned(false) }
+            { text: "OK", onPress: handleScanReset }
         ]);
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed')) {
            Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
-            { text: "OK", onPress: () => setScanned(false) }
+            { text: "OK", onPress: handleScanReset }
           ]);
         } else {
           throw e;
@@ -123,7 +129,7 @@ export default function ScannerScreen() {
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "An unexpected error occurred.", [
-        { text: "OK", onPress: () => setScanned(false) }
+        { text: "OK", onPress: handleScanReset }
       ]);
     }
   };
