@@ -55,6 +55,7 @@ export default function ScannerScreen() {
       }
 
       // 3. Duplicate Check
+      // We do a check first for better UX, but the DB also enforces uniqueness.
       const isDuplicate = await checkTicketExists(payload.data.ticket_id);
       if (isDuplicate) {
         Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
@@ -64,10 +65,21 @@ export default function ScannerScreen() {
       }
 
       // 4. Ledger Logic
-      await insertTicket(payload.data);
-      Alert.alert("✅ VALID TICKET", `Amount: ${payload.data.amount} ${payload.data.currency}\nValid & Saved to Ledger.`, [
-          { text: "OK", onPress: () => setScanned(false) }
-      ]);
+      try {
+        await insertTicket(payload.data);
+        Alert.alert("✅ VALID TICKET", `Amount: ${payload.data.amount} ${payload.data.currency}\nValid & Saved to Ledger.`, [
+            { text: "OK", onPress: () => setScanned(false) }
+        ]);
+      } catch (e: any) {
+        // Double check if error is unique constraint just in case race condition happened
+        if (e.message?.includes('UNIQUE constraint failed')) {
+           Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
+            { text: "OK", onPress: () => setScanned(false) }
+          ]);
+        } else {
+          throw e;
+        }
+      }
 
     } catch (e) {
       console.error(e);

@@ -23,6 +23,7 @@ const ticketRoutes: FastifyPluginAsync = async (fastify) => {
             expires_at: z.number(),
           }),
           sig: z.string().describe('Ed25519 signature of the data object'),
+          qr_code: z.string().describe('Base64 Data URI of the generated QR code'),
         }),
       },
     },

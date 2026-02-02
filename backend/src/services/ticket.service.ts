@@ -1,5 +1,6 @@
 import { signTicketData } from '../utils/crypto';
 import { randomUUID } from 'crypto';
+import QRCode from 'qrcode';
 
 export interface CreateTicketParams {
   amount: number;
@@ -20,5 +21,13 @@ export const generateTicket = async (params: CreateTicketParams) => {
     expires_at: expiresAt
   };
 
-  return signTicketData(ticketData);
+  const signedTicket = signTicketData(ticketData);
+
+  // Generate QR Code Data URI
+  const qrCodeDataUri = await QRCode.toDataURL(JSON.stringify(signedTicket));
+
+  return {
+    ...signedTicket,
+    qr_code: qrCodeDataUri
+  };
 };

@@ -28,7 +28,7 @@ backend/
 │   ├── routes/          # API Endpoint definitions
 │   │   └── tickets.ts   # Main logic: Input Validation -> Signing -> Response
 │   ├── services/        # Business Logic (Platform Agnostic)
-│   │   └── ticket.service.ts  # Handles UUID generation & Formatting
+│   │   └── ticket.service.ts  # Handles UUID, Formatting & QR Generation
 │   ├── utils/           # Shared Utilities
 │   │   └── crypto.ts    # The cryptographic core (Ed25519 signing wrapper)
 │   ├── scripts/         # Admin Utilities
@@ -53,7 +53,9 @@ For this MVP, we utilized **Inline Route Schemas** with `fastify-type-provider-z
 2. **Validation:** Fastify+Zod strictly verifies payload types.
 3. **Service:** `ticket.service.ts` constructs the canonical ticket object (UUID + Timestamp).
 4. **Signing:** `crypto.ts` serializes the JSON and signs it using the **Private Key** (via `tweetnacl`).
-5. **Response:** Returns the `ticket_data` (cleartext) and `signature` (proof).
+4. **Signing:** `crypto.ts` serializes the JSON and signs it using the **Private Key** (via `tweetnacl`).
+5. **QR Generation:** Generates a Base64 Data URI from the signed payload using `qrcode`.
+6. **Response:** Returns the ticket data, signature, and the renderable QR code image string.
 
 ### 4. Sample Output (The QR Payload)
 
@@ -61,14 +63,14 @@ The API returns the following JSON, which the mobile app converts into a QR code
 
 ```json
 {
-  "ticket_data": {
-    "id": "TICKET-1738564123",
+  "data": {
+    "ticket_id": "836195c6-...",
     "amount": 50,
     "currency": "GMD",
-    "timestamp": 1738564123000
+    "expires_at": 1738743000
   },
-  "signature": "d3O...[Base64_String]...9A==",
-  "public_key_used": "Used for debugging only"
+  "sig": "d3O...[Base64_String]...9A==",
+  "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
 }
 
 ```
@@ -86,3 +88,20 @@ The API returns the following JSON, which the mobile app converts into a QR code
 3. **Start:** `npm run dev`.
 4. **Docs:** Visit `http://localhost:3000/docs` to test endpoints via Swagger UI.
  
+
+ npm run dev
+```
+
+**Generate a ticket:**
+```bash
+curl -X POST http://localhost:3000/tickets/generate \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 100}'
+```
+
+**Expected Response:**
+```json
+{
+  "data": { "ticket_id": "...", "amount": 100, "...": "..." },
+  "sig": "..."
+}
