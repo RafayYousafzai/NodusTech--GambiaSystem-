@@ -1,32 +1,50 @@
-import { StyleSheet, Text, View, FlatList } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Button, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { getAllTickets, TicketRecord } from '../src/services/database';
+import { corruptDatabase, getLedger, runIntegrityAudit, AuditResult } from '../src/services/database';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 export default function HistoryScreen() {
-  const [tickets, setTickets] = useState<TicketRecord[]>([]);
+  const [tickets, setTickets] = useState<AuditResult[]>([]);
+  const [isAudited, setIsAudited] = useState(false);
 
   useEffect(() => {
-    loadTickets();
+    loadFast();
   }, []);
 
-  const loadTickets = async () => {
-    const data = await getAllTickets();
-    setTickets(data);
+  // Performance First: Fast fetch without crypto checks
+  const loadFast = async () => {
+    const rawData = await getLedger();
+    // Default to "assumed valid" until audited to keep UI snappy
+    const initialView: AuditResult[] = rawData.map(t => ({ ...t, isValid: true }));
+    setTickets(initialView);
+    setIsAudited(false);
   };
 
-  const renderItem = ({ item }: { item: TicketRecord }) => {
+  // Heavy Computation: Explicit user action or background task
+  const runAudit = async () => {
+    const auditedData = await runIntegrityAudit();
+    setTickets(auditedData);
+    setIsAudited(true);
+  };
+
+  const handleCorrupt = async () => {
+    await corruptDatabase();
+    Alert.alert("Sabotage Successful", "Row deleted. Run Audit to detect.");
+    loadFast(); // Reload raw data showing gap (or not visible yet)
+  };
+
+  const renderItem = ({ item }: { item: AuditResult }) => {
     const data = JSON.parse(item.data);
     const date = new Date(item.scanned_at);
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, !item.isValid && styles.cardInvalid]}>
         <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="bus" size={20} color="#4ade80" />
+          <View style={[styles.iconContainer, !item.isValid && styles.iconContainerInvalid]}>
+            <Ionicons name={item.isValid ? "bus" : "warning"} size={20} color={item.isValid ? "#4ade80" : "#ef4444"} />
           </View>
           <View style={styles.headerInfo}>
             <Text style={styles.ticketId}>ID: {item.ticket_id.slice(0, 8)}</Text>
@@ -42,7 +60,9 @@ export default function HistoryScreen() {
         <View style={styles.hashSection}>
           <View style={styles.hashRow}>
             <Text style={styles.hashLabel}>PREV</Text>
-            <Text numberOfLines={1} style={styles.hashValue}>{item.prev_hash}</Text>
+            <Text numberOfLines={1} style={[styles.hashValue, !item.isValid && styles.hashValueInvalid]}>
+              {item.prev_hash}
+            </Text>
           </View>
           <View style={styles.hashRow}>
             <Text style={styles.hashLabel}>CURR</Text>
@@ -51,10 +71,17 @@ export default function HistoryScreen() {
         </View>
 
         <View style={styles.footer}>
-          <View style={styles.verifiedBadge}>
-            <Ionicons name="checkmark-circle" size={14} color="#4ade80" />
-            <Text style={styles.validText}>Cryptographically Verified</Text>
-          </View>
+          {item.isValid ? (
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#4ade80" />
+              <Text style={styles.validText}>Cryptographically Verified</Text>
+            </View>
+          ) : (
+            <View style={styles.errorBadge}>
+              <Ionicons name="alert-circle" size={14} color="#ef4444" />
+              <Text style={styles.errorText}>{item.error || 'Invalid Entry'}</Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -73,6 +100,10 @@ export default function HistoryScreen() {
         }}
       />
       <StatusBar style="light" />
+      <View style={styles.actionButtons}>
+        <Button title={isAudited ? "Audit Complete" : "Run Integrity Audit"} color={isAudited ? "#4ade80" : "#007AFF"} onPress={runAudit} disabled={isAudited} />
+        <Button title="Corrupt DB" color="#ef4444" onPress={handleCorrupt} />
+      </View>
 
       <FlatList
         data={tickets}
@@ -98,6 +129,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 10,
+    backgroundColor: '#111',
+  },
   listContent: {
     padding: 20,
     paddingBottom: 40,
@@ -108,6 +145,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#222',
+  },
+  cardInvalid: {
+    borderColor: '#ef4444',
+    backgroundColor: '#1a0505',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -122,6 +163,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  iconContainerInvalid: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
   headerInfo: {
     flex: 1,
@@ -174,6 +218,10 @@ const styles = StyleSheet.create({
     color: '#666',
     flex: 1,
   },
+  hashValueInvalid: {
+    color: '#ef4444',
+    fontWeight: 'bold',
+  },
   footer: {
     paddingHorizontal: 16,
     paddingBottom: 16,
@@ -187,6 +235,17 @@ const styles = StyleSheet.create({
   },
   validText: {
     color: '#4ade80',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  errorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  errorText: {
+    color: '#ef4444',
     fontWeight: '600',
     fontSize: 12,
   },

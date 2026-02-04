@@ -49,17 +49,15 @@ This is the core security kernel. It runs **offline**.
 **Security Note**: We use `EXPO_PUBLIC_SIGNING_PUBLIC_KEY` to embed the key. This is safe because the **Public Key** can only *verify* signatures, it cannot *forge* them.
 
 #### B. The Immutable Ledger (`services/database.ts`)
-We use a relational database (SQLite) instead of simple file storage to enforce integrity.
-*   **Table Schema**:
-    ```sql
-    CREATE TABLE ledger (
-      id INTEGER PRIMARY KEY,
-      ticket_id TEXT UNIQUE,      -- Prevents Double Spending
-      data TEXT,                  -- The ticket details
-      prev_hash TEXT,             -- Link to the past
-      current_hash TEXT           -- The cryptographic seal of this row
-    );
-    ```
+We upgraded the ledger logic to strictly enforce integrity and prevent race conditions.
+
+**1. Atomic Transactions (The Guard)**
+We perform the *Read Head* -> *Hash* -> *Write Block* operation inside a `db.withTransactionAsync()` block.
+**Why?** This locks the database during insertion, preventing race conditions where two rapid scans could read the same "Latest Hash" and fork the chain.
+
+**2. The Audit Pattern (Performance)**
+*   **Fast Read**: The UI uses `getLedger()` which only reads text. It loads instantly.
+*   **Deep Audit**: Implementation of `runIntegrityAudit()` which recalculates SHA-256 for every row in the background.
 
 *   **The Hash Chain ("Local Blockchain")**:
     Every time a ticket is scanned, we calculate:
@@ -73,7 +71,7 @@ We use a relational database (SQLite) instead of simple file storage to enforce 
 2.  **Parse**: Safe JSON parsing avoids app crashes on bad data.
 3.  **Crypto Check**: runs `verifyTicketSignature()`. If fail -> Red Alert.
 4.  **Double-Spend Check**: Queries SQLite `SELECT 1 FROM ledger WHERE ticket_id = ?`. If exists -> "Already Used" Alert.
-5.  **Commit**: If all checks pass, runs `insertTicket()` to append to the chain.
+5.  **Commit**: Runs `insertTicket()` inside a Transaction. Catches any `UNIQUE constraint` errors that race past step 4.
 6.  **Feedback**: Green Success Alert showing the Amount.
 
 ### 5. Setup & Configuration
