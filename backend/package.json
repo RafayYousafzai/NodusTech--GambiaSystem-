@@ -4,9 +4,9 @@
   "description": "Backend for The Gambia Transport Validator",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
     "keygen": "ts-node src/scripts/keygen.ts"
   },
   "keywords": [],

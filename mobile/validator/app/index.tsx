@@ -2,29 +2,26 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Alert, 
-  Dimensions, 
-  TouchableOpacity, 
+import {
+  StyleSheet,
+  Text,
+  View,
+  Alert,
+  TouchableOpacity,
   Animated,
-  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { verifyTicketSignature, QRPayload } from '../src/services/verification';
 import { checkTicketExists, insertTicket, initDatabase } from '../src/services/database';
 
-const { width, height } = Dimensions.get('window');
 const SCANNER_SIZE = 280;
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const router = useRouter();
-  
+
   // Animation for the scanning line
   const scanAnim = useRef(new Animated.Value(0)).current;
 
@@ -87,7 +84,7 @@ export default function ScannerScreen() {
         payload = JSON.parse(data);
       } catch {
         Alert.alert("Invalid QR", "This is not a valid ticket QR code.", [
-            { text: "OK", onPress: handleScanReset }
+          { text: "OK", onPress: handleScanReset }
         ]);
         return;
       }
@@ -96,7 +93,7 @@ export default function ScannerScreen() {
       const isValidSig = verifyTicketSignature(payload);
       if (!isValidSig) {
         Alert.alert("⚠️ FAKE TICKET", "Digital Signature verification failed! This ticket is forged.", [
-            { text: "OK", onPress: handleScanReset }
+          { text: "OK", onPress: handleScanReset }
         ]);
         return;
       }
@@ -105,7 +102,7 @@ export default function ScannerScreen() {
       const isDuplicate = await checkTicketExists(payload.data.ticket_id);
       if (isDuplicate) {
         Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
-            { text: "OK", onPress: handleScanReset }
+          { text: "OK", onPress: handleScanReset }
         ]);
         return;
       }
@@ -114,11 +111,11 @@ export default function ScannerScreen() {
       try {
         await insertTicket(payload.data);
         Alert.alert("✅ VALID TICKET", `Amount: ${payload.data.amount} ${payload.data.currency}\nValid & Saved to Ledger.`, [
-            { text: "OK", onPress: handleScanReset }
+          { text: "OK", onPress: handleScanReset }
         ]);
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed')) {
-           Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
+          Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
             { text: "OK", onPress: handleScanReset }
           ]);
         } else {
@@ -143,7 +140,7 @@ export default function ScannerScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="light" />
-      
+
       <CameraView
         style={StyleSheet.absoluteFillObject}
         facing="back"
@@ -156,21 +153,21 @@ export default function ScannerScreen() {
       {/* Dark Overlay with Rounded Cutout */}
       <View style={styles.overlayContainer}>
         <View style={styles.scanHole} />
-        
+
         <View style={styles.scannerGuide}>
-             {/* Corner Markers */}
-             <View style={[styles.corner, styles.topLeft]} />
-             <View style={[styles.corner, styles.topRight]} />
-             <View style={[styles.corner, styles.bottomLeft]} />
-             <View style={[styles.corner, styles.bottomRight]} />
-             
-             {/* Scanning Animation Line */}
-             <Animated.View 
-                style={[
-                  styles.scanLine, 
-                  { transform: [{ translateY }] }
-                ]} 
-             />
+          {/* Corner Markers */}
+          <View style={[styles.corner, styles.topLeft]} />
+          <View style={[styles.corner, styles.topRight]} />
+          <View style={[styles.corner, styles.bottomLeft]} />
+          <View style={[styles.corner, styles.bottomRight]} />
+
+          {/* Scanning Animation Line */}
+          <Animated.View
+            style={[
+              styles.scanLine,
+              { transform: [{ translateY }] }
+            ]}
+          />
         </View>
       </View>
 
@@ -178,8 +175,8 @@ export default function ScannerScreen() {
       <SafeAreaView style={styles.uiContainer}>
         <View style={styles.header}>
           <View style={styles.badge}>
-             <Ionicons name="shield-checkmark" size={16} color="white" />
-             <Text style={styles.badgeText}>VALIDATOR</Text>
+            <Ionicons name="shield-checkmark" size={16} color="white" />
+            <Text style={styles.badgeText}>VALIDATOR</Text>
           </View>
           <Text style={styles.appTitle}>Gambia Transport</Text>
         </View>
@@ -188,9 +185,9 @@ export default function ScannerScreen() {
           <Text style={styles.instructionText}>
             Align ticket QR code within the frame
           </Text>
-          
-          <TouchableOpacity 
-            style={styles.historyButton} 
+
+          <TouchableOpacity
+            style={styles.historyButton}
             onPress={() => router.push('/history')}
             activeOpacity={0.8}
           >
@@ -238,7 +235,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
-  
+
   // Overlay System
   overlayContainer: {
     ...StyleSheet.absoluteFillObject,

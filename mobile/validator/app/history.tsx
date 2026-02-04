@@ -1,5 +1,5 @@
-import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { StyleSheet, Text, View, FlatList } from 'react-native';
+import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { getAllTickets, TicketRecord } from '../src/services/database';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import { StatusBar } from 'expo-status-bar';
 
 export default function HistoryScreen() {
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
-  const router = useRouter();
 
   useEffect(() => {
     loadTickets();
@@ -22,7 +21,7 @@ export default function HistoryScreen() {
   const renderItem = ({ item }: { item: TicketRecord }) => {
     const data = JSON.parse(item.data);
     const date = new Date(item.scanned_at);
-    
+
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -34,28 +33,28 @@ export default function HistoryScreen() {
             <Text style={styles.date}>{date.toLocaleDateString()} • {date.toLocaleTimeString()}</Text>
           </View>
           <View style={styles.amountBadge}>
-             <Text style={styles.amount}>{data.amount} {data.currency}</Text>    
+            <Text style={styles.amount}>{data.amount} {data.currency}</Text>
           </View>
         </View>
-        
+
         <View style={styles.divider} />
 
         <View style={styles.hashSection}>
           <View style={styles.hashRow}>
-             <Text style={styles.hashLabel}>PREV</Text>
-             <Text numberOfLines={1} style={styles.hashValue}>{item.prev_hash}</Text>
+            <Text style={styles.hashLabel}>PREV</Text>
+            <Text numberOfLines={1} style={styles.hashValue}>{item.prev_hash}</Text>
           </View>
           <View style={styles.hashRow}>
-             <Text style={styles.hashLabel}>CURR</Text>
-             <Text numberOfLines={1} style={styles.hashValue}>{item.current_hash}</Text>
+            <Text style={styles.hashLabel}>CURR</Text>
+            <Text numberOfLines={1} style={styles.hashValue}>{item.current_hash}</Text>
           </View>
         </View>
-        
+
         <View style={styles.footer}>
-           <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={14} color="#4ade80" />
-              <Text style={styles.validText}>Cryptographically Verified</Text>
-           </View>
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#4ade80" />
+            <Text style={styles.validText}>Cryptographically Verified</Text>
+          </View>
         </View>
       </View>
     );
@@ -63,18 +62,18 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <Stack.Screen 
-        options={{ 
-            title: "Scan History", 
-            headerStyle: { backgroundColor: '#000' },
-            headerTintColor: '#fff',
-            headerTitleStyle: { fontWeight: 'bold' },
-            headerBackTitle: "Back",
-            headerShadowVisible: false,
-        }} 
+      <Stack.Screen
+        options={{
+          title: "Scan History",
+          headerStyle: { backgroundColor: '#000' },
+          headerTintColor: '#fff',
+          headerTitleStyle: { fontWeight: 'bold' },
+          headerBackTitle: "Back",
+          headerShadowVisible: false,
+        }}
       />
       <StatusBar style="light" />
-      
+
       <FlatList
         data={tickets}
         renderItem={renderItem}
@@ -83,7 +82,7 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconBg}>
-                <Ionicons name="documents-outline" size={48} color="#444" />
+              <Ionicons name="documents-outline" size={48} color="#444" />
             </View>
             <Text style={styles.emptyText}>No tickets scanned yet</Text>
             <Text style={styles.emptySubText}>Scan a ticket to see it appear here in the ledger.</Text>
@@ -191,7 +190,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
-  
+
   // Empty State
   emptyContainer: {
     alignItems: 'center',
