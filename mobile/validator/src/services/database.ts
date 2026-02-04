@@ -140,8 +140,13 @@ export const runIntegrityAudit = async (): Promise<AuditResult[]> => {
             isValid = false;
             errorType = "Chain Broken (Missing Previous Row)";
         }
-    } else if (current.prev_hash !== 'GENESIS_HASH') {
-         // Valid Genesis check could go here
+    } else {
+        // Genesis block check: The very first ticket MUST point to GENESIS_HASH.
+        // If it doesn't, it means the start of the chain was deleted (e.g. ID 1-10 deleted, ID 11 remains).
+        if (current.prev_hash !== 'GENESIS_HASH') {
+             isValid = false;
+             errorType = "Root Tampered (Genesis Block Missing)";
+        }
     }
 
     audited.push({ ...current, isValid, error: errorType });
