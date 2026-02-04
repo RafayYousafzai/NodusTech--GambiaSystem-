@@ -1,50 +1,94 @@
-# Welcome to your Expo app 👋
+# Mobile Validator Implementation Documentation
+## The Gambia Transport Validator - Driver App (Component B)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This document details the mobile implementation for the Offline-First Anti-Corruption ticketing system. This component serves as the **"Truth Validator"** and **"Immutable Ledger"** in our architecture.
 
-## Get started
+### 1. The "Trust No One" Architecture
 
-1. Install dependencies
+The Validator App is designed to operate in a hostile environment:
+*   **No Internet**: It must verify tickets without calling a server.
+*   **Untrusted User**: The driver might try to delete trips to steal money.
+*   **Adversarial Input**: Passengers might try to show fake QR codes.
 
-   ```bash
-   npm install
-   ```
+To solve this, we use **Ed25519 Cryptography** for verification and a **Hash-Chained SQLite Database** for storage.
 
-2. Start the app
+### 2. Tech Stack & Decisions
 
-   ```bash
-   npx expo start
-   ```
+*   **Framework**: **React Native (Expo)** - Rapid development, easy deployment to Android/iOS.
+*   **Language**: **TypeScript** - Strict type safety prevents critical runtime errors in the field.
+*   **Cryptography**: **TweetNaCl** - The industry standard for Ed25519 in JavaScript. Fast, small, and secure.
+*   **Database**: **Expo SQLite** - A full SQL engine running locally on the device.
+*   **Camera**: **Expo Camera** - Performance-optimized QR scanning.
 
-In the output, you'll find options to open the app in a
+### 3. Project Structure
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```text
+mobile/validator/
+├── app/
+│   ├── index.tsx          # Screen 1: The Scanner (Main UI)
+│   ├── history.tsx        # Screen 2: The Immutable Ledger View
+│   └── _layout.tsx        # Navigation Configuration
+├── src/
+│   ├── constants/
+│   │   └── config.ts      # Configuration (Public Keys via EXPO_PUBLIC_)
+│   ├── services/
+│   │   ├── verification.ts # The "Brain": Crypto verification logic
+│   │   └── database.ts     # The "Vault": SQLite + Hash Chain Logic
+│   └── ...
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 4. Implementation Details
 
-## Learn more
+#### A. The Verification Module (`services/verification.ts`)
+This is the core security kernel. It runs **offline**.
+1.  **Input**: Takes the QR payload `{ data, sig }`.
+2.  **Reconstruction**: Re-creates the exact message string `JSON.stringify(data)` that the server signed.
+3.  **Math**: Uses `nacl.sign.detached.verify` to check if the `sig` was created by the Private Key corresponding to our hardcoded `SIGNING_PUBLIC_KEY`.
+4.  **Result**: Returns `true` (Valid) or `false` (Fake).
 
-To learn more about developing your project with Expo, look at the following resources:
+**Security Note**: We use `EXPO_PUBLIC_SIGNING_PUBLIC_KEY` to embed the key. This is safe because the **Public Key** can only *verify* signatures, it cannot *forge* them.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+#### B. The Immutable Ledger (`services/database.ts`)
+We upgraded the ledger logic to strictly enforce integrity and prevent race conditions.
 
-## Join the community
+**1. Atomic Transactions (The Guard)**
+We perform the *Read Head* -> *Hash* -> *Write Block* operation inside a `db.withTransactionAsync()` block.
+**Why?** This locks the database during insertion, preventing race conditions where two rapid scans could read the same "Latest Hash" and fork the chain.
 
-Join our community of developers creating universal apps.
+**2. The Audit Pattern (Performance)**
+*   **Fast Read**: The UI uses `getLedger()` which only reads text. It loads instantly.
+*   **Deep Audit**: Implementation of `runIntegrityAudit()` which recalculates SHA-256 for every row in the background.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+*   **The Hash Chain ("Local Blockchain")**:
+    Every time a ticket is scanned, we calculate:
+    ```typescript
+    currentHash = SHA256( TicketID + Timestamp + PreviousRowHash )
+    ```
+    **Why?** If the driver deletes a row (e.g., ID 5), the `prev_hash` of ID 6 will no longer match the hash of ID 4. The chain breaks. This provides **mathematical proof** of tampering.
+
+#### C. The Scanner User Flow (`app/index.tsx`)
+1.  **Scan**: Camera detects QR code data.
+2.  **Parse**: Safe JSON parsing avoids app crashes on bad data.
+3.  **Crypto Check**: runs `verifyTicketSignature()`. If fail -> Red Alert.
+4.  **Double-Spend Check**: Queries SQLite `SELECT 1 FROM ledger WHERE ticket_id = ?`. If exists -> "Already Used" Alert.
+5.  **Commit**: Runs `insertTicket()` inside a Transaction. Catches any `UNIQUE constraint` errors that race past step 4.
+6.  **Feedback**: Green Success Alert showing the Amount.
+
+### 5. Setup & Configuration
+
+1.  **Environment**: Requires a `.env.local` file with the Public Key:
+    ```env
+    EXPO_PUBLIC_SIGNING_PUBLIC_KEY=your_base64_key_here
+    ```
+2.  **Running**:
+    ```bash
+    npx expo start
+    ```
+3.  **Testing**:
+    *   Scan a valid QR -> Green Check.
+    *   Scan the same QR again -> "Already Used".
+    *   Scan a modified QR -> "Fake Ticket".
+
+### 6. Future Improvements (Post-MVP)
+*   **Sync**: A background job to upload the SQLite ledger to the cloud when internet becomes available.
+*   **Driver ID**: Pin the driver's ID to the hash chain.
