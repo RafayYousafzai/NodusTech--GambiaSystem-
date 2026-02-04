@@ -35,4 +35,22 @@ If the phone has deleted data (tampering), the "Zipper" won't close.
 
 ## 4. Implementation Plan (Post-MVP)
 1.  **Backend:** Add `POST /sync` endpoint accepting `TicketRecord[]`.
-2.  **Mobile:** Add `syncService.ts` to fetch `last_hash` and upload diff.
+## 5. The Reinstall / Clear Data Edge Case
+
+**The Problem:**
+If a driver clears app data (or reinstalls), the local DB is empty. The next scan (Trip #51) would mistakenly use `GENESIS_HASH`, creating a fork that the server would reject (because the server expects it to link to Trip #50).
+
+**The Solution: "Checkpoint Hydration"**
+When the driver logs into a fresh app installation, the app must perform a **One-Time Checkpoint Fetch**.
+
+### The Flow:
+1.  **Login**: Driver signs into the app (Internet required for initial setup).
+2.  **Fetch Checkpoint**: App requests `GET /driver/me/latest-hash`.
+3.  **Server Responds**: "Your last synced hash was `abc...123` (Trip #50)."
+4.  **Mobile Initializes**: The app stores `{ id: 50, current_hash: 'abc...123' }` as a **"Ghost Record"** in the DB.
+5.  **Scan #51**:
+    *   The app sees the Ghost Record #50.
+    *   It calculates Trip #51 using `prev_hash = 'abc...123'`.
+6.  **Sync**: The server accepts Trip #51 because it links perfectly to the server's history.
+
+*Note: This strictly distinguishes between "Malicious Deletion" (Offline Gap) and "Authorized Reinstall" (Online Handshake).*
