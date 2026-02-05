@@ -20,6 +20,8 @@ const SCANNER_SIZE = 280;
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [result, setResult] = useState<{ type: 'success' | 'error' | 'warning', title: string, message: string } | null>(null);
+  const processingRef = useRef(false);
   const router = useRouter();
 
   // Animation for the scanning line
@@ -30,7 +32,16 @@ export default function ScannerScreen() {
     startScanAnimation();
   }, []);
 
+  const resetScanner = () => {
+    setScanned(false);
+    setResult(null);
+    processingRef.current = false;
+    startScanAnimation();
+  };
+
   const startScanAnimation = () => {
+    // Reset animation
+    scanAnim.setValue(0);
     Animated.loop(
       Animated.sequence([
         Animated.timing(scanAnim, {
@@ -67,14 +78,11 @@ export default function ScannerScreen() {
     );
   }
 
-  const handleScanReset = () => {
-    setTimeout(() => {
-      setScanned(false);
-    }, 2000);
-  };
-
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned) return;
+    if (scanned || processingRef.current) return;
+
+    // Lock effectively immediately
+    processingRef.current = true;
     setScanned(true);
 
     try {
@@ -83,41 +91,51 @@ export default function ScannerScreen() {
       try {
         payload = JSON.parse(data);
       } catch {
-        Alert.alert("Invalid QR", "This is not a valid ticket QR code.", [
-          { text: "OK", onPress: handleScanReset }
-        ]);
+        setResult({
+          type: 'error',
+          title: "Invalid QR",
+          message: "This is not a valid ticket QR code."
+        });
         return;
       }
 
       // 2. Crypto Check
       const isValidSig = verifyTicketSignature(payload);
       if (!isValidSig) {
-        Alert.alert("⚠️ FAKE TICKET", "Digital Signature verification failed! This ticket is forged.", [
-          { text: "OK", onPress: handleScanReset }
-        ]);
+        setResult({
+          type: 'error',
+          title: "⚠️ FAKE TICKET",
+          message: "Digital Signature verification failed! This ticket is forged."
+        });
         return;
       }
 
       // 3. Duplicate Check
       const isDuplicate = await checkTicketExists(payload.data.ticket_id);
       if (isDuplicate) {
-        Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
-          { text: "OK", onPress: handleScanReset }
-        ]);
+        setResult({
+          type: 'warning',
+          title: "❌ ALREADY USED",
+          message: "This ticket has already been scanned."
+        });
         return;
       }
 
       // 4. Ledger Logic
       try {
         await insertTicket(payload.data);
-        Alert.alert("✅ VALID TICKET", `Amount: ${payload.data.amount} ${payload.data.currency}\nValid & Saved to Ledger.`, [
-          { text: "OK", onPress: handleScanReset }
-        ]);
+        setResult({
+          type: 'success',
+          title: "✅ VALID TICKET",
+          message: `Amount: ${payload.data.amount} ${payload.data.currency}\nValid & Saved to Ledger.`
+        });
       } catch (e: any) {
         if (e.message?.includes('UNIQUE constraint failed')) {
-          Alert.alert("❌ ALREADY USED", "This ticket has already been scanned.", [
-            { text: "OK", onPress: handleScanReset }
-          ]);
+          setResult({
+            type: 'warning',
+            title: "❌ ALREADY USED",
+            message: "This ticket has already been scanned."
+          });
         } else {
           throw e;
         }
@@ -125,9 +143,11 @@ export default function ScannerScreen() {
 
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "An unexpected error occurred.", [
-        { text: "OK", onPress: handleScanReset }
-      ]);
+      setResult({
+        type: 'error',
+        title: "Error",
+        message: "An unexpected error occurred."
+      });
     }
   };
 
@@ -171,30 +191,54 @@ export default function ScannerScreen() {
         </View>
       </View>
 
+      {/* Result Overlay */}
+      {result && (
+        <View style={styles.resultOverlay}>
+          <View style={[styles.resultCard, result.type === 'error' && styles.errorCard, result.type === 'warning' && styles.warningCard]}>
+            <Ionicons
+              name={result.type === 'success' ? "checkmark-circle" : result.type === 'warning' ? "warning" : "alert-circle"}
+              size={64}
+              color={result.type === 'success' ? "#4ade80" : result.type === 'warning' ? "#fbbf24" : "#ef4444"}
+            />
+            <Text style={styles.resultTitle}>{result.title}</Text>
+            <Text style={styles.resultMessage}>{result.message}</Text>
+
+            <TouchableOpacity style={styles.scanNextButton} onPress={resetScanner}>
+              <Text style={styles.scanNextText}>Scan Another</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* UI Layer */}
       <SafeAreaView style={styles.uiContainer}>
-        <View style={styles.header}>
-          <View style={styles.badge}>
-            <Ionicons name="shield-checkmark" size={16} color="white" />
-            <Text style={styles.badgeText}>VALIDATOR</Text>
-          </View>
-          <Text style={styles.appTitle}>Gambia Transport</Text>
-        </View>
+        {/* Hide UI when result is showing to reduce clutter */}
+        {!result && (
+          <>
+            <View style={styles.header}>
+              <View style={styles.badge}>
+                <Ionicons name="shield-checkmark" size={16} color="white" />
+                <Text style={styles.badgeText}>VALIDATOR</Text>
+              </View>
+              <Text style={styles.appTitle}>Gambia Transport</Text>
+            </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.instructionText}>
-            Align ticket QR code within the frame
-          </Text>
+            <View style={styles.footer}>
+              <Text style={styles.instructionText}>
+                Align ticket QR code within the frame
+              </Text>
 
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => router.push('/history')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="time-outline" size={24} color="white" />
-            <Text style={styles.historyButtonText}>View History</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={styles.historyButton}
+                onPress={() => router.push('/history')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="time-outline" size={24} color="white" />
+                <Text style={styles.historyButtonText}>View History</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -386,5 +430,64 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     position: 'absolute',
     top: 0,
+  },
+
+  // Result Overlay
+  resultOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    padding: 20,
+  },
+  resultCard: {
+    width: '100%',
+    backgroundColor: '#111',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4ade80',
+    shadowColor: "#4ade80",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+  },
+  errorCard: {
+    borderColor: '#ef4444',
+    shadowColor: "#ef4444",
+  },
+  warningCard: {
+    borderColor: '#fbbf24',
+    shadowColor: '#fbbf24'
+  },
+  resultTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: 'white',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  resultMessage: {
+    fontSize: 16,
+    color: '#ccc',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  scanNextButton: {
+    backgroundColor: 'white',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  scanNextText: {
+    color: 'black',
+    fontWeight: '800',
+    fontSize: 16,
   }
 });
