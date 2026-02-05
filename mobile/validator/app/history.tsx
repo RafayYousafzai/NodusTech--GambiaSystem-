@@ -100,6 +100,7 @@ export default function HistoryScreen() {
         }}
       />
       <StatusBar style="light" />
+      <Text style={styles.devToolsText}>Dev Tools (Only For Testing)</Text>
       <View style={styles.actionButtons}>
         <Button title={isAudited ? "Audit Complete" : "Run Integrity Audit"} color={isAudited ? "#4ade80" : "#007AFF"} onPress={runAudit} disabled={isAudited} />
         <Button title="Corrupt DB" color="#ef4444" onPress={handleCorrupt} />
@@ -128,6 +129,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  devToolsText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginVertical: 10,
   },
   actionButtons: {
     flexDirection: 'row',
