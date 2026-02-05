@@ -2,7 +2,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+import { jsonSchemaTransform, serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import ticketRoutes from './routes/tickets';
 import healthRoutes from './routes/health';
 
@@ -31,6 +31,7 @@ export const buildApp = (): FastifyInstance => {
         { url: 'http://localhost:3000' }
       ]
     },
+    transform: jsonSchemaTransform,
   });
 
   app.register(swaggerUi, {
