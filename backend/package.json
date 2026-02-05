@@ -2,10 +2,10 @@
   "name": "gambia-validator-backend",
   "version": "1.0.0",
   "description": "Backend for The Gambia Transport Validator",
-  "main": "dist/server.js",
+  "main": "dist/src/server.js",
   "scripts": {
     "dev": "ts-node src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "build": "tsc",
     "keygen": "ts-node src/scripts/keygen.ts"
   },
