@@ -44,3 +44,5 @@ export const buildApp = (): FastifyInstance => {
 
   return app;
 };
+
+export default buildApp;
